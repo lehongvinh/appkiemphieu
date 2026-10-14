@@ -3,8 +3,8 @@ import pandas as pd
 from unidecode import unidecode
 
 # 1. CẤU HÌNH TRANG WEB
-st.set_page_config(page_title="Hệ thống Bầu cử & Kiểm phiếu tự động", layout="wide")
-st.title("📊 Hệ thống Bầu cử & Kiểm phiếu Tự động")
+st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
+st.title("📊 Hệ thống Kiểm phiếu Tự động")
 
 # Khởi tạo bộ nhớ tạm cho ứng dụng (Session State)
 if 'danh_sach' not in st.session_state:
@@ -65,10 +65,10 @@ with col_test:
             {"Ten": "Lê Thị Diễm", "SoPhieu": 0, "Vong": vong}
         ])
 
-# 3. MỤC 2 - BỘ ĐIỀU KHIỂN KIỂM PHIẾU & BẢNG XẾP HẠNG THỜI GIAN THỰC
+# 3. MỤC 2 - KIỂM PHIẾU & BẢNG XẾP HẠNG
 if st.session_state.danh_sach:
     st.write("---")
-    st.header("2. Bộ điều khiển Kiểm phiếu & Bảng xếp hạng")
+    st.header("2. Kiểm phiếu & Bảng xếp hạng")
     
     col_nhap_lieu, col_bxh = st.columns(2)
     
@@ -128,15 +128,15 @@ if st.session_state.danh_sach:
             else:
                 st.caption("❌ Không tìm thấy ứng viên.")
                 
-    # --- BÊN PHẢI: BẢNG XẾP HẠNG THỜI GIAN THỰC ---
+    # --- BÊN PHẢI: BẢNG XẾP HẠNG ---
     with col_bxh:
-        st.subheader("🏆 Bảng xếp hạng thời gian thực")
+        st.subheader("Bảng xếp hạng ")
         st.dataframe(df_hien_thi, use_container_width=True, height=450)
 
 # 4. MỤC 3 - PHẦN CHỈNH SỬA & ĐIỀU CHỈNH DỮ LIỆU ĐỂ RIÊNG BIỆT
 if st.session_state.danh_sach:
     st.write("---")
-    st.header("3. Phần chỉnh sửa & Điều chỉnh dữ liệu")
+    st.header("3. Điều chỉnh dữ liệu")
     
     danh_sach_ten_sua = [uv["Ten"] for uv in st.session_state.danh_sach]
     ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
