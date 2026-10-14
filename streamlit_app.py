@@ -16,36 +16,46 @@ if 'nguoi_click_gan_nhat' not in st.session_state:
 if 'so_lan_click_lien_tiep' not in st.session_state:
     st.session_state.so_lan_click_lien_tiep = 0
 
-# 2. GỘP CHUNG: MỤC 1 - THIẾT LẬP THÔNG SỐ & TẢI DANH SÁCH ỨNG VIÊN
+# 2. GỘP CHUNG: MỤC 1 - THIẾT LẬP THÔNG SỐ (6 CỘT) & TẢI DANH SÁCH ỨNG VIÊN
 st.header("1. Thiết lập thông số và Tải danh sách ứng viên")
-col_vong, col_hople, col_trang, col_excel = st.columns([1.5, 1.5, 1.5, 3.5])
 
-with col_vong:
+# Tạo 6 cột cho thông số chung
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+with col1:
     vong = st.selectbox("Chọn vòng tín nhiệm:", ["Vòng đề cử", "Vòng 1", "Vòng 2", "Vòng 3"])
-with col_hople:
+with col2:
+    phiu_phat_ra = st.number_input("Số phiếu phát ra:", min_value=0, value=0, step=1)
+with col3:
+    phiu_thu_vao = st.number_input("Số phiếu thu vào:", min_value=0, value=0, step=1)
+with col4:
+    phiu_bat_hop_le = st.number_input("Phiếu bất hợp lệ:", min_value=0, value=0, step=1)
+with col5:
     phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=100, step=1)
-with col_trang:
+with col6:
     phiu_trang = st.number_input("Số phiếu trắng (hợp lệ):", min_value=0, value=0, step=1)
 
+# Tổng mẫu số thực tế dùng để tính toán %
 tong_mau_so = phiu_hop_le + phiu_trang
 
-with col_excel:
-    uploaded_file = st.file_uploader("Tải lên danh sách ứng viên từ Excel (Cột đầu là Họ tên):", type=["xlsx", "xls"])
-    if uploaded_file and not st.session_state.danh_sach:
-        try:
-            df = pd.read_excel(uploaded_file)
-            ten_ung_vien = df.iloc[:, 0].dropna().tolist()
-            st.session_state.danh_sach = [
-                {"Ten": ten, "SoPhieu": 0, "Vong": vong} for ten in ten_ung_vien
-            ]
-            st.success(f"Đã tải {len(ten_ung_vien)} ứng viên từ Excel!")
-        except Exception as e:
-            st.error(f"Lỗi đọc file: {e}")
+# Khu vực upload file Excel nằm ngay bên dưới thanh cấu hình số liệu cho rộng rãi
+st.write("<br>", unsafe_allow_html=True)
+uploaded_file = st.file_uploader("Tải lên danh sách ứng viên từ Excel (Cột đầu là Họ tên):", type=["xlsx", "xls"])
+if uploaded_file and not st.session_state.danh_sach:
+    try:
+        df = pd.read_excel(uploaded_file)
+        ten_ung_vien = df.iloc[:, 0].dropna().tolist()
+        st.session_state.danh_sach = [
+            {"Ten": ten, "SoPhieu": 0, "Vong": vong} for ten in ten_ung_vien
+        ]
+        st.success(f"Đã tải {len(ten_ung_vien)} ứng viên từ Excel!")
+    except Exception as e:
+        st.error(f"Lỗi đọc file: {e}")
 
-# Nút test nhanh nằm gọn gàng bên dưới khu vực nhập liệu chung
-col_test, _ = st.columns([3, 7])
+# Nút test nhanh hệ thống dữ liệu mẫu
+col_test, _ = st.columns([2, 8])
 with col_test:
-    if st.button("Tạo dữ liệu thử nghiệm (13 người mẫu)"):
+    if st.button("Tạo dữ liệu thử nghiệm"):
         st.session_state.danh_sach = [
             {"Ten": f"Nguyễn Văn {chr(65+i)}", "SoPhieu": 0, "Vong": vong} for i in range(10)
         ]
