@@ -2,22 +2,28 @@ import streamlit as st
 import pandas as pd
 
 # 1. CẤU HÌNH TRANG WEB
-st.set_page_config(page_title="Hệ thống Bầu cử & Kiểm phiếu tự động", layout="wide")
-st.title("📊 Hệ thống Bầu cử & Kiểm phiếu Tự động")
+st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
+st.title("📊 Hệ thống Kiểm phiếu Tự động")
 
 # Khởi tạo bộ nhớ tạm cho ứng dụng (Session State)
 if 'danh_sach' not in st.session_state:
     st.session_state.danh_sach = []  # Chứa danh sách ứng viên
 
 # 2. KHU VỰC CẤU HÌNH CHUNG
-st.header("1. Thông tin cấu hình chung")
-col1, col2, col3 = st.columns(3)
+st.header("1. Thông tin")
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
     vong = st.selectbox("Chọn vòng tín nhiệm:", ["Vòng đề cử", "Vòng 1", "Vòng 2", "Vòng 3"])
 with col2:
-    phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=100, step=1)
+    phiu_phatra = st.number_input("Số phiếu phat ra:", min_value=0, value=0, step=1)
 with col3:
+    phiu_thuvao = st.number_input("Số phiếu thu vao:", min_value=0, value=0, step=1)
+with col4:
+    phiu_bathople = st.number_input("Số phiếu bat hop le:", min_value=0, value=0, step=1)
+with col5:
+    phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=100, step=1)
+with col6:
     phiu_trang = st.number_input("Số phiếu trắng (cũng hợp lệ):", min_value=0, value=0, step=1)
 
 # Tổng mẫu số để tính %
@@ -50,7 +56,7 @@ if st.button("Tạo dữ liệu thử nghiệm (10 ứng viên mẫu)"):
 # 4. KHU VỰC TALLY / NHẬP LIỆU NHANH (NHẮC NHỚ TÊN)
 if st.session_state.danh_sach:
     st.write("---")
-    st.header("3. Nhập liệu nhanh (Tally phiếu)")
+    st.header("3. Nhập liệu nhanh ")
     
     # Lấy danh sách tên để làm gợi ý nhắc nhớ
     danh_sach_ten = [uv["Ten"] for uv in st.session_state.danh_sach]
