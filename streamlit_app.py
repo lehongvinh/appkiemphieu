@@ -3,7 +3,7 @@ import pandas as pd
 from unidecode import unidecode
 
 # 1. CẤU HÌNH TRANG WEB
-st.set_page_config(page_title="Hệ thống Bầu cử & Kiểm phiếu tự động", layout="wide")
+st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
 st.title("📊 Hệ thống Bầu cử & Kiểm phiếu Tự động")
 
 # Khởi tạo bộ nhớ tạm cho ứng dụng (Session State)
@@ -14,13 +14,19 @@ if 'tu_khoa_tim' not in st.session_state:
 
 # 2. KHU VỰC CẤU HÌNH CHUNG
 st.header("1. Thông tin cấu hình chung")
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
     vong = st.selectbox("Chọn vòng tín nhiệm:", ["Vòng đề cử", "Vòng 1", "Vòng 2", "Vòng 3"])
 with col2:
-    phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=100, step=1)
+    phiu_phatra = st.number_input("Số phiếu phat ra:", min_value=0, value=0, step=1)
 with col3:
+    phiu_thuvao = st.number_input("Số phiếu thu vao:", min_value=0, value=0, step=1)
+with col4:
+    phiu_bathople = st.number_input("Số phiếu bat hop le:", min_value=0, value=0, step=1)
+with col5:
+    phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=100, step=1)
+with col6:
     phiu_trang = st.number_input("Số phiếu trắng (cũng hợp lệ):", min_value=0, value=0, step=1)
 
 tong_mau_so = phiu_hop_le + phiu_trang
@@ -55,9 +61,9 @@ if st.button("Tạo dữ liệu thử nghiệm (10 ứng viên mẫu)"):
 # 4. KHU VỰC NHẬP LIỆU SIÊU TỐC KHÔNG DẤU
 if st.session_state.danh_sach:
     st.write("---")
-    st.header("3. Kiểm phiếu siêu tốc (Gõ KHÔNG DẤU để tìm nhanh)")
+    st.header("3. Kiểm phiếu")
     
-    tu_khoa = st.text_input("Gõ tên ứng viên cần thêm phiếu (Không cần gõ dấu tiếng Việt):", value=st.session_state.tu_khoa_tim)
+    tu_khoa = st.text_input("Gõ tên ứng viên cần thêm phiếu (Không cần gõ dấu):", value=st.session_state.tu_khoa_tim)
     
     if tu_khoa:
         tu_khoa_khong_dau = unidecode(tu_khoa).lower().strip()
@@ -87,7 +93,7 @@ if st.session_state.danh_sach:
 # 5. BẢNG KẾT QUẢ & KHU VỰC SỬA SAI
 if st.session_state.danh_sach:
     st.write("---")
-    st.header("4. Bảng xếp hạng và Công cụ Điều chỉnh số liệu")
+    st.header("4. Bảng xếp hạng")
     
     # ĐÃ SỬA LỖI TẠI ĐÂY: Thêm số 2 vào st.columns(2) để chia màn hình thành 2 cột đều nhau
     col_bang, col_sua = st.columns(2)
@@ -108,13 +114,13 @@ if st.session_state.danh_sach:
     df_hien_thi.columns = ["Họ và Tên", "Số Phiếu Tín Nhiệm", "Số Vòng", "Tỷ Lệ %", "Ghi Chú (Đánh giá)"]
     
     with col_bang:
-        st.subheader("Bảng Xếp Hạng Thời Gian Thực")
+        st.subheader("Bảng Xếp Hạng")
         st.dataframe(df_hien_thi, use_container_width=True, height=500)
         
     with col_sua:
-        st.subheader("🛠️ Công cụ Sửa / Xóa")
+        st.subheader("🛠️Công cụ")
         danh_sach_ten_sua = [uv["Ten"] for uv in st.session_state.danh_sach]
-        ten_can_sua = st.selectbox("Chọn ứng viên cần sửa/xóa:", [""] + danh_sach_ten_sua, key="select_sua")
+        ten_can_sua = st.selectbox("Chọn ứng viên:", [""] + danh_sach_ten_sua, key="select_sua")
         
         if ten_can_sua:
             info_hien_tai = next(item for item in st.session_state.danh_sach if item["Ten"] == ten_can_sua)
