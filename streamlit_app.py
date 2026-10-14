@@ -3,7 +3,7 @@ import pandas as pd
 from unidecode import unidecode
 
 # 1. CẤU HÌNH TRANG WEB
-st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
+st.set_page_config(page_title="Hệ thống Bầu cử & Kiểm phiếu tự động", layout="wide")
 st.title("📊 Hệ thống Bầu cử & Kiểm phiếu Tự động")
 
 # Khởi tạo bộ nhớ tạm cho ứng dụng (Session State)
@@ -52,40 +52,33 @@ if st.button("Tạo dữ liệu thử nghiệm (10 ứng viên mẫu)"):
         {"Ten": "Lê Thị Diễm", "SoPhieu": 0, "Vong": vong}
     ])
 
-# 4. KHU VỰC NHẬP LIỆU SIÊU TỐC KHÔNG DẤU (MỚI CẢI TIẾN)
+# 4. KHU VỰC NHẬP LIỆU SIÊU TỐC KHÔNG DẤU
 if st.session_state.danh_sach:
     st.write("---")
     st.header("3. Kiểm phiếu siêu tốc (Gõ KHÔNG DẤU để tìm nhanh)")
     
-    # Ô nhập từ khóa tìm kiếm công nghệ Unidecode
     tu_khoa = st.text_input("Gõ tên ứng viên cần thêm phiếu (Không cần gõ dấu tiếng Việt):", value=st.session_state.tu_khoa_tim)
     
     if tu_khoa:
         tu_khoa_khong_dau = unidecode(tu_khoa).lower().strip()
         
-        # Lọc danh sách ứng viên khớp với từ khóa gõ không dấu
         goi_y_khop = []
         for uv in st.session_state.danh_sach:
             ten_khong_dau = unidecode(uv["Ten"]).lower()
             if tu_khoa_khong_dau in ten_khong_dau:
                 goi_y_khop.append(uv["Ten"])
         
-        # Nếu tìm thấy kết quả phù hợp, hiển thị dưới dạng các dòng nút bấm chọn nhanh
         if goi_y_khop:
             st.write("💡 *Kết quả tìm thấy (Click chọn đúng tên để tự động cộng 1 phiếu):*")
             
-            # Giới hạn hiển thị tối đa 5 người khớp nhất để tránh tràn màn hình
-            for ten_Goi_y in goi_y_khop[:5]:
-                # Tạo một nút bấm cho mỗi tên tìm thấy
-                if st.button(f"👤 {ten_Goi_y}", key=f"btn_{ten_Goi_y}", use_container_width=True):
-                    # Cộng phiếu cho người được chọn
+            for ten_goi_y in goi_y_khop[:5]:
+                if st.button(f"👤 {ten_goi_y}", key=f"btn_{ten_goi_y}", use_container_width=True):
                     for uv in st.session_state.danh_sach:
-                        if uv["Ten"] == ten_Goi_y:
+                        if uv["Ten"] == ten_goi_y:
                             uv["SoPhieu"] += 1
                             uv["Vong"] = vong
-                            st.toast(f"🎉 Đã cộng 1 phiếu cho: {ten_Goi_y}!", icon="✅")
+                            st.toast(f"🎉 Đã cộng 1 phiếu cho: {ten_goi_y}!", icon="✅")
                     
-                    # Reset ô tìm kiếm về trống sau khi cộng phiếu thành công
                     st.session_state.tu_khoa_tim = ""
                     st.rerun()
         else:
@@ -96,7 +89,8 @@ if st.session_state.danh_sach:
     st.write("---")
     st.header("4. Bảng xếp hạng và Công cụ Điều chỉnh số liệu")
     
-    col_bang, col_sua = st.columns()
+    # ĐÃ SỬA LỖI TẠI ĐÂY: Thêm số 2 vào st.columns(2) để chia màn hình thành 2 cột đều nhau
+    col_bang, col_sua = st.columns(2)
     
     df_kq = pd.DataFrame(st.session_state.danh_sach)
     if tong_mau_so > 0:
@@ -127,6 +121,7 @@ if st.session_state.danh_sach:
             st.info(f"Đang chọn: **{ten_can_sua}**\n\nSố phiếu hiện tại: **{info_hien_tai['SoPhieu']}** phiếu.")
             so_phieu_moi = st.number_input("Nhập lại số phiếu đúng:", min_value=0, value=int(info_hien_tai["SoPhieu"]), step=1)
             
+            # ĐÃ SỬA LỖI TẠI ĐÂY: Thêm số 2 vào st.columns(2) để chia nút bấm Sửa và Xóa sang 2 bên độc lập
             col_btn_sua, col_btn_xoa = st.columns(2)
             with col_btn_sua:
                 if st.button("💾 Cập nhật số phiếu", use_container_width=True, type="primary", key="save_phieu"):
