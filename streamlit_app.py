@@ -55,7 +55,7 @@ init_db()
 
 # Đọc dữ liệu hiện tại từ Database ra các biến để xử lý trong phiên chạy này
 conn = get_db_connection()
-df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc[0]
+df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc
 danh_sach_uv = pd.read_sql_query("SELECT * FROM ung_vien", conn).to_dict(orient="records")
 
 # ==========================================
@@ -216,8 +216,63 @@ if danh_sach_uv:
                 else:
                     cell.font = font_data
                     cell.alignment = Alignment(vertical="center", horizontal="left")
-                    # Căn giữa cho các cột số liệu/trạng thái để dễ nhìn hơn
+                    # SỬA LỖI TẠI ĐÂY: Căn giữa nội dung cho các cột số thứ tự, số phiếu, tỷ lệ và ghi chú để bảng đẹp hơn
                     if cell.column in:
                         cell.alignment = Alignment(horizontal="center", vertical="center")
-                    
-        # Tự động co giãn độ rộng của các cột theo nội dung chữ bên trong ô
+                    # Tự động co giãn độ rộng của các cột theo nội dung chữ bên trong ô
+for col in ws.columns:
+max_len = max(len(str(cell.value or '')) for cell in col)
+col_letter = col.column_letter
+ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+wb.save(output)
+return output.getvalue()
+# Tạo nút nhấn tải báo cáo đặt ngay dưới khu vực bảng xếp hạng
+st.write("", unsafe_allow_html=True)
+excel_data = export_to_excel_pretty(df_hien_thi)
+st.download_button(
+label="📥 Tải về Báo cáo Kết quả (Định dạng Excel có khung kẻ bảng)",
+data=excel_data,
+file_name="Ket_qua_kiem_phieu_chuan.xlsx",
+mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+use_container_width=True
+)
+
+==========================================
+
+
+6. MỤC 3 - PHẦN CHỈNH SỬA VÀ ĐIỀU CHỈNH DỮ LIỆU ĐỂ RIÊNG BIỆT
+
+
+==========================================
+
+if danh_sach_uv:
+st.write("---")
+st.header("3. Điều chỉnh dữ liệu (Quản trị viên)")
+danh_sach_ten_sua = [uv["ten"] for uv in danh_sach_uv]
+ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách hệ thống:", [""] + danh_sach_ten_sua, key="select_sua")
+if ten_can_sua:
+info_hien_tai = next(item for item in danh_sach_uv if item["ten"] == ten_can_sua)
+col_info, col_action = st.columns(2)
+with col_info:
+st.info(f"Ứng viên đang chọn: {ten_can_sua}  \nSố phiếu hiện tại trên hệ thống: {info_hien_tai['so_phieu']} phiếu.")
+so_phieu_moi = st.number_input("Nhập chính xác số phiếu thay thế mới:", min_value=0, value=int(info_hien_tai["so_phieu"]), step=1)
+with col_action:
+st.write("
+", unsafe_allow_html=True)
+col_btn_sua, col_btn_xoa = st.columns(2)
+with col_btn_sua:
+if st.button("💾 Lưu thay đổi số phiếu", use_container_width=True, type="primary"):
+conn.execute("UPDATE ung_vien SET so_phieu=? WHERE ten=?", (so_phieu_moi, ten_can_sua))
+conn.commit()
+st.success(f"Đã cập nhật lại số phiếu của {ten_can_sua} thành {so_phieu_moi}!")
+st.rerun()
+with col_btn_xoa:
+if st.button("🗑️ Xóa ứng viên này", use_container_width=True):
+conn.execute("DELETE FROM ung_vien WHERE ten=?", (ten_can_sua,))
+conn.commit()
+st.warning(f"Đã xóa hoàn toàn ứng viên {ten_can_sua} khỏi danh sách!")
+st.rerun()
+
+Đóng kết nối Database khi kết thúc phiên chạy đoạn code
+
+conn.close()
