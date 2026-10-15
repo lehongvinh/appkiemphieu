@@ -14,7 +14,6 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
 st.title("📊 Hệ thống Kiểm phiếu Tự động (Đồng bộ đa máy)")
 
-# Tự động quét và làm mới toàn bộ giao diện sau mỗi 3000 mili-giây (3 giây)
 st_autorefresh(interval=3000, key="datarefresh")
 
 # ==========================================
@@ -42,7 +41,7 @@ def init_db():
         )
     ''')
     cursor.execute("SELECT COUNT(*) FROM thong_so")
-    res = cursor.fetchone()[0]
+    res = cursor.fetchone()
     if res == 0:
         cursor.execute("INSERT INTO thong_so VALUES (1, 'Vòng đề cử', 0, 0, 0, 100, 0)")
     conn.commit()
@@ -51,7 +50,7 @@ def init_db():
 init_db()
 
 conn = get_db_connection()
-df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc[0]
+df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc
 danh_sach_uv = pd.read_sql_query("SELECT * FROM ung_vien", conn).to_dict(orient="records")
 
 # ==========================================
@@ -77,7 +76,7 @@ with col6:
 
 tong_mau_so = phiu_hop_le + phiu_trang
 
-col_save_ts, _ = st.columns([2, 10])
+col_save_ts, col_reset_system = st.columns(2)
 with col_save_ts:
     if st.button("💾 Lưu cấu hình thông số", use_container_width=True, type="primary"):
         conn.execute('''
@@ -88,28 +87,63 @@ with col_save_ts:
         st.success("Đã đồng bộ thông số hệ thống!")
         st.rerun()
 
-st.write("")
-uploaded_file = st.file_uploader("Tải lên danh sách ứng viên từ Excel (Cột đầu là Họ tên):", type=["xlsx", "xls"])
-if uploaded_file and not danh_sach_uv:
-    try:
-        df = pd.read_excel(uploaded_file)
-        ten_ung_vien = df.iloc[:, 0].dropna().tolist()
-        for ten in ten_ung_vien:
-            conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (str(ten), vong))
+with col_reset_system:
+    if st.button("🧹 BẮT ĐẦU CUỘC BỎ PHIẾU MỚI", use_container_width=True, type="secondary"):
+        conn.execute("DELETE FROM ung_vien")
+        conn.execute('''
+            UPDATE thong_so 
+            SET vong='Vòng đề cử', phiu_phat=0, phiu_thu=0, phiu_huy=0, phiu_hop_le=100, phiu_trang=0 WHERE id=1
+        ''')
         conn.commit()
-        st.success(f"Đã tải thành công {len(ten_ung_vien)} ứng viên vào Database chung!")
+        st.toast("Đã xóa hết dữ liệu cũ! Hãy tải file Excel mới hoặc file báo cáo cũ để khôi phục.", icon="🗑️")
         st.rerun()
-    except Exception as e:
-        st.error(f"Lỗi đọc dữ liệu file Excel: {e}")
 
-col_test, _ = st.columns([2, 10])
+st.write("")
+
+if not danh_sach_uv:
+    uploaded_file = st.file_uploader("Tải lên danh sách hoặc file báo cáo kết quả cũ:", type=["xlsx", "xls"])
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file)
+            
+            if "Họ và Tên" in df.columns or "Số Phiếu Tín Nhiệm" in df.columns:
+                col_ten = "Họ và Tên" if "Họ và Tên" in df.columns else df.columns[0]
+                col_phiu = "Số Phiếu Tín Nhiệm" if "Số Phiếu Tín Nhiệm" in df.columns else df.columns[1]
+                col_vong = "Số Vòng" if "Số Vòng" in df.columns else df.columns[2]
+                
+                for _, row in df.iterrows():
+                    ten = str(row[col_ten]).strip()
+                    if pd.isna(row[col_ten]) or ten == "STT" or "Họ và Tên" in ten:
+                        continue
+                    
+                    raw_phiu = str(row[col_phiu])
+                    so_phieu = int(raw_phiu.split("/")[0].strip()) if "/" in raw_phiu else 0
+                    vong_file = str(row[col_vong]).strip() if not pd.isna(row[col_vong]) else vong
+                    
+                    conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, ?, ?)", (ten, so_phieu, vong_file))
+                conn.commit()
+                st.success("🎉 Đã khôi phục thành công danh sách và số phiếu từ file báo cáo cũ!")
+            else:
+                ten_ung_vien = df.iloc[:, 0].dropna().tolist()
+                for ten in ten_ung_vien:
+                    conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (str(ten), vong))
+                conn.commit()
+                st.success(f"Đã tải thành công {len(ten_ung_vien)} ứng viên mới!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Lỗi đọc dữ liệu file Excel: {e}")
+else:
+    st.info("💡 Hệ thống đang có dữ liệu. Hãy bấm **'🧹 BẮT ĐẦU CUỘC BỎ PHIẾU MỚI'** để mở khóa ô tải file.")
+
+col_test, _ = st.columns(2)
 with col_test:
-    if st.button("✨ Tạo dữ liệu thử nghiệm", use_container_width=True):
-        test_names = [f"Nguyễn Văn {chr(65+i)}" for i in range(15)] + ["Nguyễn Văn Tuấn", "Trần Minh Hoàng", "Lê Thị Diễm"]
-        for ten in test_names:
-            conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (ten, vong))
-        conn.commit()
-        st.rerun()
+    if not danh_sach_uv:
+        if st.button("✨ Tạo dữ liệu thử nghiệm", use_container_width=True):
+            test_names = [f"Nguyễn Văn {chr(65+i)}" for i in range(15)] + ["Nguyễn Văn Tuấn", "Trần Minh Hoàng", "Lê Thị Diễm"]
+            for ten in test_names:
+                conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (ten, vong))
+            conn.commit()
+            st.rerun()
 
 # ==========================================
 # 4. MỤC 2 - KIỂM PHIẾU VÀ BẢNG XẾP HẠNG
@@ -137,7 +171,6 @@ if danh_sach_uv:
     df_hien_thi = df_kq[["Ten", "Số Phiếu Tín Nhiệm", "Vong", "Tỷ Lệ %", "Đánh Giá"]]
     df_hien_thi.columns = ["Họ và Tên", "Số Phiếu Tín Nhiệm", "Số Vòng", "Tỷ Lệ %", "Ghi Chú (Đánh giá)"]
 
-    # --- BÊN TRÁI: Ô NHẬP PHIẾU NHANH ---
     with col_nhap_lieu:
         with st.container(border=True):
             st.subheader("⌨️ Ô nhập phiếu nhanh")
@@ -159,7 +192,6 @@ if danh_sach_uv:
                 else:
                     st.caption("❌ Không tìm thấy ứng viên nào khớp.")
                 
-    # --- BÊN PHẢI: BẢNG XẾP HẠNG GỌN GÀNG TRONG KHUNG CÓ THANH CUỘN ---
     with col_bxh:
         with st.container(border=True):
             st.subheader("🏆 Bảng xếp hạng hiển thị")
@@ -205,7 +237,6 @@ if danh_sach_uv:
                     else:
                         cell.alignment = Alignment(horizontal="center", vertical="center")
                     
-        # ĐÃ FIX TRIỆT ĐỂ: Duyệt qua số thứ tự cột và dùng get_column_letter chuẩn của openpyxl
         for col_idx in range(1, ws.max_column + 1):
             col_letter = get_column_letter(col_idx)
             max_len = 0
@@ -227,13 +258,12 @@ if danh_sach_uv:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
-
-# ==========================================
-# 6. MỤC 3 - PHẦN CHỈNH SỬA VÀ ĐIỀU CHỈNH DỮ LIỆU
-# ==========================================
+==========================================
+6. MỤC 3 - PHẦN CHỈNH SỬA VÀ ĐIỀU CHỈNH DỮ LIỆU (ĐÃ GỠ BỎ MẬT KHẨU)
+==========================================
 if danh_sach_uv:
     st.write("---")
-    st.header("3. Điều chỉnh dữ liệu (Quản trị viên)")
+    st.header("3. Điều chỉnh dữ liệu")
     
     danh_sach_ten_sua = [uv["ten"] for uv in danh_sach_uv]
     ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
