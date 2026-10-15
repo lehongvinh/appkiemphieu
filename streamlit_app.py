@@ -1,79 +1,138 @@
 import streamlit as st
 import pandas as pd
 from unidecode import unidecode
+import sqlite3
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Border, Side, Alignment, PatternFill, Font
+from streamlit_autorefresh import st_autorefresh
 
-# 1. CẤU HÌNH TRANG WEB
+# ==========================================
+# 1. CẤU HÌNH TRANG WEB & TỰ ĐỘNG LÀM MỚI (REAL-TIME)
+# ==========================================
 st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
-st.title("📊 Hệ thống Kiểm phiếu Tự động")
+st.title("📊 Hệ thống Kiểm phiếu Tự động (Đồng bộ đa máy)")
 
-# Khởi tạo bộ nhớ tạm cho ứng dụng (Session State)
-if 'danh_sach' not in st.session_state:
-    st.session_state.danh_sach = []  # Chứa danh sách ứng viên
-if 'tu_khoa_tim' not in st.session_state:
-    st.session_state.tu_khoa_tim = ""  # Từ khóa ô tìm kiếm
-if 'nguoi_click_gan_nhat' not in st.session_state:
-    st.session_state.nguoi_click_gan_nhat = ""
-if 'so_lan_click_lien_tiep' not in st.session_state:
-    st.session_state.so_lan_click_lien_tiep = 0
+# Tự động quét và làm mới toàn bộ giao diện sau mỗi 3000 mili-giây (3 giây)
+st_autorefresh(interval=3000, key="datarefresh")
 
-# 2. GỘP CHUNG: MỤC 1 - THIẾT LẬP THÔNG SỐ (6 CỘT) & TẢI DANH SÁCH ỨNG VIÊN
+# ==========================================
+# 2. KHỞI TẠO VÀ CẤU HÌNH DATABASE CENTRAL (SQLITE)
+# ==========================================
+def get_db_connection():
+    # check_same_thread=False giúp nhiều luồng từ các máy tính phụ truy cập chung cùng lúc
+    conn = sqlite3.connect('kiem_phieu_data.db', check_same_thread=False)
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Bảng lưu thông số chung của cuộc bỏ phiếu
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS thong_so (
+            id INTEGER PRIMARY KEY,
+            vong TEXT, phiu_phat INTEGER, phiu_thu INTEGER, 
+            phiu_huy INTEGER, phiu_hop_le INTEGER, phiu_trang INTEGER
+        )
+    ''')
+    # Bảng lưu danh sách và số phiếu của ứng viên
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ung_vien (
+            ten TEXT PRIMARY KEY,
+            so_phieu INTEGER,
+            vong TEXT
+        )
+    ''')
+    # Khởi tạo dữ liệu mặc định cho bảng thông số nếu chưa có
+    cursor.execute("SELECT COUNT(*) FROM thong_so")
+    if cursor.fetchone() == 0:
+        cursor.execute("INSERT INTO thong_so VALUES (1, 'Vòng đề cử', 0, 0, 0, 100, 0)")
+    conn.commit()
+    conn.close()
+
+# Kích hoạt tạo database ngay khi chạy ứng dụng
+init_db()
+
+# Đọc dữ liệu hiện tại từ Database ra các biến để xử lý trong phiên chạy này
+conn = get_db_connection()
+df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc[0]
+danh_sach_uv = pd.read_sql_query("SELECT * FROM ung_vien", conn).to_dict(orient="records")
+
+# ==========================================
+# 3. MỤC 1 - THIẾT LẬP THÔNG SỐ & TẢI DANH SÁCH ỨNG VIÊN
+# ==========================================
 st.header("1. Thiết lập thông số và Tải danh sách ứng viên")
 
-# Tạo 6 cột cho thông số chung
+# Tạo thanh cấu hình gồm 6 cột
 col1, col2, col3, col4, col5, col6 = st.columns(6)
-
 with col1:
-    vong = st.selectbox("Chọn vòng tín nhiệm:", ["Vòng đề cử", "Vòng 1", "Vòng 2", "Vòng 3"])
+    vong_list = ["Vòng đề cử", "Vòng 1", "Vòng 2", "Vòng 3"]
+    idx_vong = vong_list.index(df_ts['vong']) if df_ts['vong'] in vong_list else 0
+    vong = st.selectbox("Chọn vòng tín nhiệm:", vong_list, index=idx_vong)
 with col2:
-    phiu_phat_ra = st.number_input("Số phiếu phát ra:", min_value=0, value=0, step=1)
+    phiu_phat_ra = st.number_input("Số phiếu phát ra:", min_value=0, value=int(df_ts['phiu_phat']), step=1)
 with col3:
-    phiu_thu_vao = st.number_input("Số phiếu thu vào:", min_value=0, value=0, step=1)
+    phiu_thu_vao = st.number_input("Số phiếu thu vào:", min_value=0, value=int(df_ts['phiu_thu']), step=1)
 with col4:
-    phiu_bat_hop_le = st.number_input("Phiếu bất hợp lệ:", min_value=0, value=0, step=1)
+    phiu_bat_hop_le = st.number_input("Phiếu bất hợp lệ:", min_value=0, value=int(df_ts['phiu_huy']), step=1)
 with col5:
-    phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=100, step=1)
+    phiu_hop_le = st.number_input("Số phiếu hợp lệ:", min_value=0, value=int(df_ts['phiu_hop_le']), step=1)
 with col6:
-    phiu_trang = st.number_input("Số phiếu trắng (hợp lệ):", min_value=0, value=0, step=1)
+    phiu_trang = st.number_input("Số phiếu trắng (hợp lệ):", min_value=0, value=int(df_ts['phiu_trang']), step=1)
 
-# Tổng mẫu số thực tế dùng để tính toán %
+# Tính tổng mẫu số thực tế dùng để tính toán tỷ lệ phần trăm
 tong_mau_so = phiu_hop_le + phiu_trang
 
-# Khu vực upload file Excel nằm ngay bên dưới thanh cấu hình số liệu cho rộng rãi
+# Nút xác nhận lưu thông số xuống DB để phân phối cấu hình này tới tất cả các máy phụ
+col_save_ts, _ = st.columns([2, 8])
+with col_save_ts:
+    if st.button("💾 Lưu cấu hình thông số", use_container_width=True, type="primary"):
+        conn.execute('''
+            UPDATE thong_so 
+            SET vong=?, phiu_phat=?, phiu_thu=?, phiu_huy=?, phiu_hop_le=?, phiu_trang=? WHERE id=1
+        ''', (vong, phiu_phat_ra, phiu_thu_vao, phiu_bat_hop_le, phiu_hop_le, phiu_trang))
+        conn.commit()
+        st.success("Đã đồng bộ thông số hệ thống!")
+        st.rerun()
+
+# Khu vực tải lên file Excel danh sách ứng viên ban đầu
 st.write("<br>", unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Tải lên danh sách ứng viên từ Excel (Cột đầu là Họ tên):", type=["xlsx", "xls"])
-if uploaded_file and not st.session_state.danh_sach:
+if uploaded_file and not danh_sach_uv:
     try:
         df = pd.read_excel(uploaded_file)
         ten_ung_vien = df.iloc[:, 0].dropna().tolist()
-        st.session_state.danh_sach = [
-            {"Ten": ten, "SoPhieu": 0, "Vong": vong} for ten in ten_ung_vien
-        ]
-        st.success(f"Đã tải {len(ten_ung_vien)} ứng viên từ Excel!")
+        for ten in ten_ung_vien:
+            conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (ten, vong))
+        conn.commit()
+        st.success(f"Đã tải thành công {len(ten_ung_vien)} ứng viên vào Database chung!")
+        st.rerun()
     except Exception as e:
-        st.error(f"Lỗi đọc file: {e}")
+        st.error(f"Lỗi đọc dữ liệu file Excel: {e}")
 
-# Nút test nhanh hệ thống dữ liệu mẫu
+# Nút tạo dữ liệu thử nghiệm nhanh (Test hệ thống)
 col_test, _ = st.columns([2, 8])
 with col_test:
-    if st.button("Tạo dữ liệu thử nghiệm"):
-        st.session_state.danh_sach = [
-            {"Ten": f"Nguyễn Văn {chr(65+i)}", "SoPhieu": 0, "Vong": vong} for i in range(10)
-        ]
-        st.session_state.danh_sach.extend([
-            {"Ten": "Nguyễn Văn Tuấn", "SoPhieu": 0, "Vong": vong},
-            {"Ten": "Trần Minh Hoàng", "SoPhieu": 0, "Vong": vong},
-            {"Ten": "Lê Thị Diễm", "SoPhieu": 0, "Vong": vong}
-        ])
+    if st.button("✨ Tạo dữ liệu thử nghiệm", use_container_width=True):
+        test_names = [f"Nguyễn Văn {chr(65+i)}" for i in range(10)] + ["Nguyễn Văn Tuấn", "Trần Minh Hoàng", "Lê Thị Diễm"]
+        for ten in test_names:
+            conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (ten, vong))
+        conn.commit()
+        st.rerun()
 
-# 3. MỤC 2 - KIỂM PHIẾU & BẢNG XẾP HẠNG
-if st.session_state.danh_sach:
+# ==========================================
+# 4. MỤC 2 - KIỂM PHIẾU VÀ BẢNG XẾP HẠNG
+# ==========================================
+if danh_sach_uv:
     st.write("---")
-    st.header("2. Kiểm phiếu & Bảng xếp hạng")
+    st.header("2. Kiểm phiếu & Bảng xếp hạng (Dữ liệu chung)")
     
     col_nhap_lieu, col_bxh = st.columns(2)
     
-    # Xử lý dữ liệu bảng kết quả trước để hiển thị
-    df_kq = pd.DataFrame(st.session_state.danh_sach)
+    # Chuẩn bị và xử lý dữ liệu cho bảng hiển thị
+    df_kq = pd.DataFrame(danh_sach_uv)
+    df_kq.columns = ["Ten", "SoPhieu", "Vong"]  # Đồng nhất tên cột lấy ra từ SQLite
+    
     if tong_mau_so > 0:
         df_kq["Tỷ Lệ %"] = (df_kq["SoPhieu"] * 100 / tong_mau_so).round(2)
     else:
@@ -82,8 +141,9 @@ if st.session_state.danh_sach:
     df_kq["Số Phiếu Tín Nhiệm"] = df_kq["SoPhieu"].astype(str) + " / " + str(tong_mau_so)
     df_kq["Đánh Giá"] = df_kq["Tỷ Lệ %"].apply(lambda x: "🟢 ĐẠT" if x >= 50.0 else "🔴 CHƯA ĐẠT")
     
+    # Sắp xếp danh sách giảm dần theo số phiếu
     df_kq = df_kq.sort_values(by="SoPhieu", ascending=False).reset_index(drop=True)
-    df_kq.index += 1
+    df_kq.index += 1  # Đổi chỉ mục bắt đầu từ số 1 (STT)
     
     df_hien_thi = df_kq[["Ten", "Số Phiếu Tín Nhiệm", "Vong", "Tỷ Lệ %", "Đánh Giá"]]
     df_hien_thi.columns = ["Họ và Tên", "Số Phiếu Tín Nhiệm", "Số Vòng", "Tỷ Lệ %", "Ghi Chú (Đánh giá)"]
@@ -91,80 +151,73 @@ if st.session_state.danh_sach:
     # --- BÊN TRÁI: Ô NHẬP PHIẾU NHANH ---
     with col_nhap_lieu:
         st.subheader("⌨️ Ô nhập phiếu nhanh")
-        tu_khoa = st.text_input("Gõ tên ứng viên (Không dấu):", value=st.session_state.tu_khoa_tim, placeholder="Ví dụ: tuan, hoang...")
+        tu_khoa = st.text_input("Gõ tên ứng viên (Không dấu để tìm kiếm):", placeholder="Ví dụ: tuan, hoang, diem...")
         
         if tu_khoa:
             tu_khoa_khong_dau = unidecode(tu_khoa).lower().strip()
-            goi_y_khop = []
-            for uv in st.session_state.danh_sach:
-                ten_khong_dau = unidecode(uv["Ten"]).lower()
-                if tu_khoa_khong_dau in ten_khong_dau:
-                    goi_y_khop.append(uv["Ten"])
+            # Lọc gợi ý tìm kiếm
+            goi_y_khop = [uv for uv in danh_sach_uv if tu_khoa_khong_dau in unidecode(uv["ten"]).lower()]
             
             if goi_y_khop:
                 st.write("*Click chọn đúng tên bên dưới để cộng phiếu:*")
-                for ten_goi_y in goi_y_khop[:5]:
+                for uv_goi_y in goi_y_khop[:5]:
+                    ten_goi_y = uv_goi_y["ten"]
                     if st.button(f"👤 {ten_goi_y}", key=f"btn_{ten_goi_y}", use_container_width=True):
-                        # Cộng phiếu
-                        for uv in st.session_state.danh_sach:
-                            if uv["Ten"] == ten_goi_y:
-                                uv["SoPhieu"] += 1
-                                uv["Vong"] = vong
-                        
-                        # Đếm số lần click liên tiếp
-                        if st.session_state.nguoi_click_gan_nhat == ten_goi_y:
-                            st.session_state.so_lan_click_lien_tiep += 1
-                        else:
-                            st.session_state.nguoi_click_gan_nhat = ten_goi_y
-                            st.session_state.so_lan_click_lien_tiep = 1
-                        
-                        if st.session_state.so_lan_click_lien_tiep == 1:
-                            st.toast(f"✅ Đã cộng 1 phiếu cho: {ten_goi_y}!", icon="🎉")
-                        else:
-                            st.toast(f"🔥 Đã cộng {st.session_state.so_lan_click_lien_tiep} phiếu liên tiếp cho: {ten_goi_y}!", icon="📊")
-                        
-                        st.session_state.tu_khoa_tim = ""
+                        # Dùng cú pháp SQL tăng tiến 'so_phieu = so_phieu + 1' để tránh Race Condition (xung đột ghi đè)
+                        conn.execute("UPDATE ung_vien SET so_phieu = so_phieu + 1, vong=? WHERE ten=?", (vong, ten_goi_y))
+                        conn.commit()
+                        st.toast(f"✅ Đã ghi nhận thêm 1 phiếu cho: {ten_goi_y}!", icon="🎉")
                         st.rerun()
             else:
-                st.caption("❌ Không tìm thấy ứng viên.")
+                st.caption("❌ Không tìm thấy ứng viên nào khớp với từ khóa.")
                 
-    # --- BÊN PHẢI: BẢNG XẾP HẠNG ---
+    # --- BÊN PHẢI: BẢNG XẾP HẠNG THỜI GIAN THỰC ---
     with col_bxh:
-        st.subheader("Bảng xếp hạng ")
-        st.dataframe(df_hien_thi, use_container_width=True, height=450)
+        st.subheader("Bảng xếp hạng hiển thị")
+        st.dataframe(df_hien_thi, use_container_width=True, height=400)
 
-# 4. MỤC 3 - PHẦN CHỈNH SỬA & ĐIỀU CHỈNH DỮ LIỆU ĐỂ RIÊNG BIỆT
-if st.session_state.danh_sach:
-    st.write("---")
-    st.header("3. Điều chỉnh dữ liệu")
-    
-    danh_sach_ten_sua = [uv["Ten"] for uv in st.session_state.danh_sach]
-    ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
-    
-    if ten_can_sua:
-        info_hien_tai = next(item for item in st.session_state.danh_sach if item["Ten"] == ten_can_sua)
-        col_info, col_action = st.columns(2)
+    # ==========================================
+    # 5. CHỨC NĂNG XUẤT FILE EXCEL ĐẸP CÓ KHUNG KẺ KÈM THEO
+    # ==========================================
+    def export_to_excel_pretty(df_source):
+        output = io.BytesIO()
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "KetQuaKiemPhieu"
         
-        with col_info:
-            st.info(f"Ứng viên đang chọn: **{ten_can_sua}**  \nSố phiếu hiện tại trên hệ thống: **{info_hien_tai['SoPhieu']}** phiếu.")
-            so_phieu_moi = st.number_input("Nhập chính xác số phiếu thay thế:", min_value=0, value=int(info_hien_tai["SoPhieu"]), step=1)
+        # Thiết kế các mẫu định dạng phong cách chuyên nghiệp
+        font_header = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+        font_data = Font(name="Arial", size=11)
+        fill_header = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid") # Màu xanh navy
+        
+        thin_border = Border(
+            left=Side(style='thin', color='BFBFBF'),
+            right=Side(style='thin', color='BFBFBF'),
+            top=Side(style='thin', color='BFBFBF'),
+            bottom=Side(style='thin', color='BFBFBF')
+        )
+        
+        # Ghi hàng tiêu đề cột
+        headers = ["STT"] + list(df_source.columns)
+        ws.append(headers)
+        
+        # Ghi các dòng nội dung dữ liệu
+        for idx, row in enumerate(df_source.itertuples(), start=1):
+            ws.append([idx] + list(row[1:]))
             
-        with col_action:
-            st.write("<br>", unsafe_allow_html=True)
-            col_btn_sua, col_btn_xoa = st.columns(2)
-            with col_btn_sua:
-                if st.button("💾 Lưu thay đổi số phiếu", use_container_width=True, type="primary", key="save_phieu"):
-                    for uv in st.session_state.danh_sach:
-                        if uv["Ten"] == ten_can_sua:
-                            uv["SoPhieu"] = so_phieu_moi
-                            st.session_state.nguoi_click_gan_nhat = ""
-                            st.session_state.so_lan_click_lien_tiep = 0
-                            st.success(f"Đã cập nhật lại số phiếu của {ten_can_sua} thành {so_phieu_moi}!")
-                            st.rerun()
-            with col_btn_xoa:
-                if st.button("🗑️ Xóa ứng viên này", use_container_width=True, key="del_uv"):
-                    st.session_state.danh_sach = [item for item in st.session_state.danh_sach if item["Ten"] != ten_can_sua]
-                    st.session_state.nguoi_click_gan_nhat = ""
-                    st.session_state.so_lan_click_lien_tiep = 0
-                    st.warning(f"Đã xóa hoàn toàn ứng viên {ten_can_sua}!")
-                    st.rerun()
+        # Duyệt và áp dụng viền khung, màu nền header, căn lề
+        for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column), start=1):
+            for cell in row:
+                cell.border = thin_border
+                if row_idx == 1:
+                    cell.font = font_header
+                    cell.fill = fill_header
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                else:
+                    cell.font = font_data
+                    cell.alignment = Alignment(vertical="center", horizontal="left")
+                    # Căn giữa cho các cột số liệu/trạng thái để dễ nhìn hơn
+                    if cell.column in:
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                    
+        # Tự động co giãn độ rộng của các cột theo nội dung chữ bên trong ô
