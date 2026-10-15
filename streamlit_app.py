@@ -231,27 +231,32 @@ if danh_sach_uv:
 if danh_sach_uv:
     st.write("---")
     st.header("3. Điều chỉnh dữ liệu (Quản trị viên)")
+    
     danh_sach_ten_sua = [uv["ten"] for uv in danh_sach_uv]
-ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
-if ten_can_sua:
-info_hien_tai = next(item for item in danh_sach_uv if item["ten"] == ten_can_sua)
-col_info, col_action = st.columns(2)
-with col_info:
-st.info(f"Ứng viên đang chọn: {ten_can_sua}  \nSố phiếu hiện tại trên hệ thống: {info_hien_tai['so_phieu']} phiếu.")
-so_phieu_moi = st.number_input("Nhập chính xác số phiếu thay thế mới:", min_value=0, value=int(info_hien_tai["so_phieu"]), step=1)
-with col_action:
-st.markdown("<br>", unsafe_allow_html=True)
-col_btn_sua, col_btn_xoa = st.columns(2)
-with col_btn_sua:
-if st.button("💾 Lưu thay đổi số phiếu", use_container_width=True, type="primary"):
-conn.execute("UPDATE ung_vien SET so_phieu=? WHERE ten=?", (so_phieu_moi, ten_can_sua))
-conn.commit()
-st.success(f"Đã cập nhật lại số phiếu của {ten_can_sua} thành {so_phieu_moi}!")
-st.rerun()
-with col_btn_xoa:
-if st.button("🗑️ Xóa ứng viên này", use_container_width=True):
-conn.execute("DELETE FROM ung_vien WHERE ten=?", (ten_can_sua,))
-conn.commit()
-st.warning(f"Đã xóa hoàn toàn ứng viên {ten_can_sua} khỏi danh sách!")
-st.rerun()
+    ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
+    
+    if ten_can_sua:
+        info_hien_tai = next(item for item in danh_sach_uv if item["ten"] == ten_can_sua)
+        col_info, col_action = st.columns(2)
+        
+        with col_info:
+            st.info(f"Ứng viên đang chọn: **{ten_can_sua}**  \nSố phiếu hiện tại trên hệ thống: **{info_hien_tai['so_phieu']}** phiếu.")
+            so_phieu_moi = st.number_input("Nhập chính xác số phiếu thay thế mới:", min_value=0, value=int(info_hien_tai["so_phieu"]), step=1)
+            
+        with col_action:
+            st.write("")
+            col_btn_sua, col_btn_xoa = st.columns(2)
+            with col_btn_sua:
+                if st.button("💾 Lưu thay đổi số phiếu", use_container_width=True, type="primary"):
+                    conn.execute("UPDATE ung_vien SET so_phieu=? WHERE ten=?", (so_phieu_moi, ten_can_sua))
+                    conn.commit()
+                    st.success(f"Đã cập nhật lại số phiếu của {ten_can_sua} thành {so_phieu_moi}!")
+                    st.rerun()
+            with col_btn_xoa:
+                if st.button("🗑️ Xóa ứng viên này", use_container_width=True):
+                    conn.execute("DELETE FROM ung_vien WHERE ten=?", (ten_can_sua,))
+                    conn.commit()
+                    st.warning(f"Đã xóa hoàn toàn ứng viên {ten_can_sua} khỏi danh sách!")
+                    st.rerun()
+
 conn.close()
