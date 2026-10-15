@@ -26,6 +26,7 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Bảng lưu thông số chung của cuộc bỏ phiếu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS thong_so (
             id INTEGER PRIMARY KEY,
@@ -33,6 +34,7 @@ def init_db():
             phiu_huy INTEGER, phiu_hop_le INTEGER, phiu_trang INTEGER
         )
     ''')
+    # Bảng lưu danh sách và số phiếu của ứng viên
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ung_vien (
             ten TEXT PRIMARY KEY,
@@ -40,8 +42,11 @@ def init_db():
             vong TEXT
         )
     ''')
+    # SỬA LỖI TẠI ĐÂY: Lấy giá trị đếm số dòng chính xác từ Tuple ra để kiểm tra
     cursor.execute("SELECT COUNT(*) FROM thong_so")
-    if cursor.fetchone() == 0:
+    row_count = cursor.fetchone()[0] # Lấy số đầu tiên trong Tuple
+    
+    if row_count == 0:
         cursor.execute("INSERT INTO thong_so VALUES (1, 'Vòng đề cử', 0, 0, 0, 100, 0)")
     conn.commit()
     conn.close()
