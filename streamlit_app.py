@@ -50,7 +50,7 @@ def init_db():
 init_db()
 
 conn = get_db_connection()
-df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc
+df_ts = pd.read_sql_query("SELECT * FROM thong_so WHERE id=1", conn).iloc[0]
 danh_sach_uv = pd.read_sql_query("SELECT * FROM ung_vien", conn).to_dict(orient="records")
 
 # ==========================================
