@@ -5,6 +5,7 @@ import sqlite3
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Border, Side, Alignment, PatternFill, Font
+from openpyxl.utils import get_column_letter
 from streamlit_autorefresh import st_autorefresh
 
 # ==========================================
@@ -26,7 +27,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Bảng lưu thông số chung của cuộc bỏ phiếu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS thong_so (
             id INTEGER PRIMARY KEY,
@@ -34,7 +34,6 @@ def init_db():
             phiu_huy INTEGER, phiu_hop_le INTEGER, phiu_trang INTEGER
         )
     ''')
-    # Bảng lưu danh sách và số phiếu của ứng viên
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ung_vien (
             ten TEXT PRIMARY KEY,
@@ -42,11 +41,9 @@ def init_db():
             vong TEXT
         )
     ''')
-    # SỬA LỖI TẠI ĐÂY: Lấy giá trị đếm số dòng chính xác từ Tuple ra để kiểm tra
     cursor.execute("SELECT COUNT(*) FROM thong_so")
-    row_count = cursor.fetchone()[0] # Lấy số đầu tiên trong Tuple
-    
-    if row_count == 0:
+    res = cursor.fetchone()[0]
+    if res == 0:
         cursor.execute("INSERT INTO thong_so VALUES (1, 'Vòng đề cử', 0, 0, 0, 100, 0)")
     conn.commit()
     conn.close()
@@ -91,7 +88,7 @@ with col_save_ts:
         st.success("Đã đồng bộ thông số hệ thống!")
         st.rerun()
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.write("")
 uploaded_file = st.file_uploader("Tải lên danh sách ứng viên từ Excel (Cột đầu là Họ tên):", type=["xlsx", "xls"])
 if uploaded_file and not danh_sach_uv:
     try:
@@ -123,7 +120,6 @@ if danh_sach_uv:
     
     col_nhap_lieu, col_bxh = st.columns(2)
     
-    # Xử lý dữ liệu bảng hiển thị
     df_kq = pd.DataFrame(danh_sach_uv)
     df_kq.columns = ["Ten", "SoPhieu", "Vong"]
     
@@ -143,7 +139,6 @@ if danh_sach_uv:
 
     # --- BÊN TRÁI: Ô NHẬP PHIẾU NHANH ---
     with col_nhap_lieu:
-        # Tạo khung hộp bọc vùng nhập liệu cho đẹp mắt
         with st.container(border=True):
             st.subheader("⌨️ Ô nhập phiếu nhanh")
             tu_khoa = st.text_input("Gõ tên ứng viên (Không dấu để tìm kiếm):", placeholder="Ví dụ: tuan, hoang, diem...")
@@ -166,10 +161,8 @@ if danh_sach_uv:
                 
     # --- BÊN PHẢI: BẢNG XẾP HẠNG GỌN GÀNG TRONG KHUNG CÓ THANH CUỘN ---
     with col_bxh:
-        # Bọc bảng vào container có viền
         with st.container(border=True):
             st.subheader("🏆 Bảng xếp hạng hiển thị")
-            # Thuộc tính height=400 buộc bảng cố định chiều cao 400px và tự sinh thanh cuộn dọc (scroll) nội bộ
             st.dataframe(df_hien_thi, use_container_width=True, height=400)
 
     # ==========================================
@@ -212,15 +205,20 @@ if danh_sach_uv:
                     else:
                         cell.alignment = Alignment(horizontal="center", vertical="center")
                     
-        for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = col.column_letter
+        # ĐÃ FIX TRIỆT ĐỂ: Duyệt qua số thứ tự cột và dùng get_column_letter chuẩn của openpyxl
+        for col_idx in range(1, ws.max_column + 1):
+            col_letter = get_column_letter(col_idx)
+            max_len = 0
+            for row in range(1, ws.max_row + 1):
+                val = ws.cell(row=row, column=col_idx).value
+                if val:
+                    max_len = max(max_len, len(str(val)))
             ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
             
         wb.save(output)
         return output.getvalue()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.write("")
     excel_data = export_to_excel_pretty(df_hien_thi)
     st.download_button(
         label="📥 Tải về Báo cáo Kết quả (Định dạng Excel có khung kẻ bảng)",
@@ -236,32 +234,27 @@ if danh_sach_uv:
 if danh_sach_uv:
     st.write("---")
     st.header("3. Điều chỉnh dữ liệu (Quản trị viên)")
-    
-    danh_sach_ten_sua = [uv["ten"] for uv in danh_sach_uv]
-    ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
-    
-    if ten_can_sua:
-        info_hien_tai = next(item for item in danh_sach_uv if item["ten"] == ten_can_sua)
-        col_info, col_action = st.columns(2)
-        
-        with col_info:
-            st.info(f"Ứng viên đang chọn: **{ten_can_sua}**  \nSố phiếu hiện tại trên hệ thống: **{info_hien_tai['so_phieu']}** phiếu.")
-            so_phieu_moi = st.number_input("Nhập chính xác số phiếu thay thế mới:", min_value=0, value=int(info_hien_tai["so_phieu"]), step=1)
-            
-        with col_action:
-            st.write("")
-            col_btn_sua, col_btn_xoa = st.columns(2)
-            with col_btn_sua:
-                if st.button("💾 Lưu thay đổi số phiếu", use_container_width=True, type="primary"):
-                    conn.execute("UPDATE ung_vien SET so_phieu=? WHERE ten=?", (so_phieu_moi, ten_can_sua))
-                    conn.commit()
-                    st.success(f"Đã cập nhật lại số phiếu của {ten_can_sua} thành {so_phieu_moi}!")
-                    st.rerun()
-            with col_btn_xoa:
-                if st.button("🗑️ Xóa ứng viên này", use_container_width=True):
-                    conn.execute("DELETE FROM ung_vien WHERE ten=?", (ten_can_sua,))
-                    conn.commit()
-                    st.warning(f"Đã xóa hoàn toàn ứng viên {ten_can_sua} khỏi danh sách!")
-                    st.rerun()
-
+danh_sach_ten_sua = [uv["ten"] for uv in danh_sach_uv]
+ten_can_sua = st.selectbox("Chọn ứng viên cần sửa số liệu hoặc xóa hẳn khỏi danh sách:", [""] + danh_sach_ten_sua, key="select_sua")
+if ten_can_sua:
+info_hien_tai = next(item for item in danh_sach_uv if item["ten"] == ten_can_sua)
+col_info, col_action = st.columns(2)
+with col_info:
+st.info(f"Ứng viên đang chọn: {ten_can_sua}  \nSố phiếu hiện tại trên hệ thống: {info_hien_tai['so_phieu']} phiếu.")
+so_phieu_moi = st.number_input("Nhập chính xác số phiếu thay thế mới:", min_value=0, value=int(info_hien_tai["so_phieu"]), step=1)
+with col_action:
+st.write("")
+col_btn_sua, col_btn_xoa = st.columns(2)
+with col_btn_sua:
+if st.button("💾 Lưu thay đổi số phiếu", use_container_width=True, type="primary"):
+conn.execute("UPDATE ung_vien SET so_phieu=? WHERE ten=?", (so_phieu_moi, ten_can_sua))
+conn.commit()
+st.success(f"Đã cập nhật lại số phiếu của {ten_can_sua} thành {so_phieu_moi}!")
+st.rerun()
+with col_btn_xoa:
+if st.button("🗑️ Xóa ứng viên này", use_container_width=True):
+conn.execute("DELETE FROM ung_vien WHERE ten=?", (ten_can_sua,))
+conn.commit()
+st.warning(f"Đã xóa hoàn toàn ứng viên {ten_can_sua} khỏi danh sách!")
+st.rerun()
 conn.close()
