@@ -138,12 +138,17 @@ else:
 col_test, _ = st.columns(2)
 with col_test:
     if not danh_sach_uv:
-        if st.button("✨ Tạo dữ liệu thử nghiệm", use_container_width=True):
-            test_names = [f"Nguyễn Văn {chr(65+i)}" for i in range(15)] + ["Nguyễn Văn Tuấn", "Trần Minh Hoàng", "Lê Thị Diễm"]
-            for ten in test_names:
-                conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (ten, vong))
-            conn.commit()
-            st.rerun()
+        # Tạo một biến trạng thái để ẩn/hiện, hiện tại đặt là False để ẩn đi
+        HIEN_NUT_TEST = False 
+        
+        if HIEN_NUT_TEST: # Thay đổi điều kiện ở đây
+            if st.button("✨ Tạo dữ liệu thử nghiệm", use_container_width=True):
+                test_names = [f"Nguyễn Văn {chr(65+i)}" for i in range(15)] + ["Nguyễn Văn Tuấn", "Trần Minh Hoàng", "Lê Thị Diễm"]
+                with get_db_connection() as conn:
+                    for ten in test_names:
+                        conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, 0, ?)", (ten, vong))
+                    conn.commit()
+                st.rerun()
 
 # ==========================================
 # 4. MỤC 2 - KIỂM PHIẾU VÀ BẢNG XẾP HẠNG
