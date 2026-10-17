@@ -12,7 +12,7 @@ from streamlit_autorefresh import st_autorefresh
 # 1. CẤU HÌNH TRANG WEB & TỰ ĐỘNG LÀM MỚI (REAL-TIME)
 # ==========================================
 st.set_page_config(page_title="Hệ thống Kiểm phiếu tự động", layout="wide")
-st.title("📊 Hệ thống Kiểm phiếu Tự động)")
+st.title("📊 Hệ thống Kiểm phiếu Tự động")
 
 st_autorefresh(interval=3000, key="datarefresh")
 
@@ -42,7 +42,7 @@ def init_db():
     ''')
     cursor.execute("SELECT COUNT(*) FROM thong_so")
     res = cursor.fetchone()
-    if res == 0:
+    if res[0] == 0:
         cursor.execute("INSERT INTO thong_so VALUES (1, 'Vòng đề cử', 0, 0, 0, 100, 0)")
     conn.commit()
     conn.close()
@@ -116,8 +116,8 @@ if not danh_sach_uv:
                     if pd.isna(row[col_ten]) or ten == "STT" or "Họ và Tên" in ten:
                         continue
                     
-                    raw_phiu = str(row[col_phiu])
-                    so_phieu = int(raw_phiu.split("/")[0].strip()) if "/" in raw_phiu else 0
+                    raw_phiu = str(row[col_phiu]).strip()
+                    so_phieu = int(raw_phiu.split("/")[0].strip()) if "/" in raw_phiu else int(float(raw_phiu))
                     vong_file = str(row[col_vong]).strip() if not pd.isna(row[col_vong]) else vong
                     
                     conn.execute("INSERT OR IGNORE INTO ung_vien VALUES (?, ?, ?)", (ten, so_phieu, vong_file))
