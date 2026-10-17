@@ -79,12 +79,28 @@ tong_mau_so = phiu_hop_le + phiu_trang
 col_save_ts, col_reset_system = st.columns(2)
 with col_save_ts:
     if st.button("💾 Lưu cấu hình thông số", use_container_width=True, type="primary"):
-        conn.execute('''
-            UPDATE thong_so 
-            SET vong=?, phiu_phat=?, phiu_thu=?, phiu_huy=?, phiu_hop_le=?, phiu_trang=? WHERE id=1
-        ''', (vong, phiu_phat_ra, phiu_thu_vao, phiu_bat_hop_le, phiu_hop_le, phiu_trang))
-        conn.commit()
-        st.success("Đã đồng bộ thông số hệ thống!")
+        with get_db_connection() as conn:
+            # 1. Kiểm tra xem người dùng có thực sự thay đổi vòng tín nhiệm hay không
+            vong_cu = df_ts['vong']
+            
+            # 2. Cập nhật bảng thông số hệ thống
+            conn.execute('''
+                UPDATE thong_so 
+                SET vong=?, phiu_phat=?, phiu_thu=?, phiu_huy=?, phiu_hop_le=?, phiu_trang=? WHERE id=1
+            ''', (vong, phiu_phat_ra, phiu_thu_vao, phiu_bat_hop_le, phiu_hop_le, phiu_trang))
+            
+            # 3. Xử lý cập nhật danh sách ứng viên dựa trên việc đổi vòng
+            if vong != vong_cu:
+                # Nếu ĐỔI SANG VÒNG MỚI: Cập nhật tên vòng VÀ đưa số phiếu về 0
+                conn.execute("UPDATE ung_vien SET vong=?, so_phieu = 0", (vong,))
+                thong_bao = f"🎉 Đã chuyển sang {vong} và reset toàn bộ số phiếu về 0!"
+            else:
+                # Nếu GIỮ NGUYÊN VÒNG: Chỉ cập nhật lại tên vòng (nếu cần) và GIỮ NGUYÊN số phiếu
+                conn.execute("UPDATE ung_vien SET vong=?", (vong,))
+                thong_bao = "Đã đồng bộ thông số hệ thống!"
+            
+            conn.commit()
+        st.success(thong_bao)
         st.rerun()
 
 with col_reset_system:
